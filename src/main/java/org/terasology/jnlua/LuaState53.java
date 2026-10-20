@@ -151,6 +151,9 @@ public class LuaState53 extends LuaState {
     native byte[] lua_tobytearray(int index);
 
     @Override
+    native String lua_tostringfast(int index);
+
+    @Override
     native long lua_tointeger(int index);
 
     @Override

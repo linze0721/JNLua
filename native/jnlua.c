@@ -723,7 +723,12 @@ JNIEXPORT void JNICALL JNI_LUASTATE_METHOD(lua_1pushinteger) (JNIEnv *env, jobje
 /* lua_pushjavafunction() */
 static int pushjavafunction_protected (lua_State *L) {
 	pushjavaobject(L, (jobject)lua_touserdata(L, 1));
-	lua_pushcclosure(L, calljavafunction, 1);
+	luaL_getmetatable(L, JNLUA_OBJECT);
+	/* Cache the Java state reference for calljavafunction. */
+	lua_getfield(L, LUA_REGISTRYINDEX, JNLUA_JAVASTATE);
+	lua_pushlightuserdata(L, lua_touserdata(L, -1));
+	lua_remove(L, -2);
+	lua_pushcclosure(L, calljavafunction, 3);
 	return 1;
 }
 JNIEXPORT void JNICALL JNI_LUASTATE_METHOD(lua_1pushjavafunction) (JNIEnv *env, jobject obj, jobject f) {
@@ -1001,6 +1006,32 @@ JNIEXPORT jboolean JNICALL JNI_LUASTATE_METHOD(lua_1toboolean) (JNIEnv *env, job
 		return 0;
 	}
 	return lua_toboolean(L, index);
+}
+
+/* lua_tostringfast() */
+JNIEXPORT jstring JNICALL JNI_LUASTATE_METHOD(lua_1tostringfast) (JNIEnv *env, jobject obj, jint index) {
+	lua_State *L;
+	const char *string;
+	size_t length, i;
+	jstring result = NULL;
+
+	JNLUA_ENV(env);
+	L = getluathread(obj);
+	/*
+	 * Fast path for short ASCII strings (method and field names). Embedded
+	 * NUL bytes and non-ASCII text need the regular byte array conversion.
+	 */
+	if (validindex(L, index) && lua_type(L, index) == LUA_TSTRING
+			&& (string = lua_tolstring(L, index, &length)) != NULL
+			&& length <= 256) {
+		for (i = 0; i < length; i++) {
+			if ((unsigned char) string[i] >= 0x80 || string[i] == 0) {
+				return NULL;
+			}
+		}
+		result = (*env)->NewStringUTF(env, string);
+	}
+	return result;
 }
 
 /* lua_tobytearray() */
@@ -2332,19 +2363,29 @@ static int calljavafunction (lua_State *L) {
 	jobject luaerror;
 	
 	/* Get Java state. */
-	lua_getfield(L, LUA_REGISTRYINDEX, JNLUA_JAVASTATE);
-	if (!lua_isuserdata(L, -1)) {
+	{
+		jobject *state_ref = (jobject*) lua_touserdata(L, lua_upvalueindex(3));
+		javastate = state_ref ? *state_ref : NULL;
+	}
+	if (!javastate) {
 		/* Java state has been cleared as the Java VM was destroyed. Cannot call. */
 		lua_pushliteral(L, "no Java state");
 		return lua_error(L);
 	}
-	javastate = *(jobject *) lua_touserdata(L, -1);
-	lua_pop(L, 1);
 	
 	/* Get Java function object. */
-	lua_pushvalue(L, lua_upvalueindex(1));
-	javafunction = tojavaobject(L, -1, javafunction_interface);
-	lua_pop(L, 1);
+	javafunction = NULL;
+	if (lua_type(L, lua_upvalueindex(1)) == LUA_TUSERDATA
+			&& lua_getmetatable(L, lua_upvalueindex(1))) {
+		if (lua_rawequal(L, -1, lua_upvalueindex(2))) {
+			javafunction = *(jobject *) lua_touserdata(L, lua_upvalueindex(1));
+		}
+		lua_pop(L, 1);
+	}
+	if (javafunction && !(*thread_env)->IsInstanceOf(thread_env,
+			javafunction, javafunction_interface)) {
+		javafunction = NULL;
+	}
 	if (!javafunction) {
 		/* Function was cleared from outside JNLua code. */
 		lua_pushliteral(L, "no Java function");

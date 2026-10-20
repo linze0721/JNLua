@@ -1428,6 +1428,10 @@ public abstract class LuaState {
 	 */
 	public synchronized String toString(int index) {
 		check();
+		String string = lua_tostringfast(index);
+		if (string != null) {
+			return string;
+		}
 		byte[] bytes = lua_tobytearray(index);
 		if (bytes != null) {
 			return new String(bytes, characterSet);
@@ -2567,6 +2571,8 @@ public abstract class LuaState {
 	abstract boolean lua_toboolean(int index);
 
 	abstract byte[] lua_tobytearray(int index);
+
+	abstract String lua_tostringfast(int index);
 	
 	abstract long lua_tointeger(int index);
 
