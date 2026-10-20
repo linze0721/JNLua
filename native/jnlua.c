@@ -416,6 +416,34 @@ JNIEXPORT jint JNICALL JNI_LUASTATE_METHOD(lua_1gc) (JNIEnv *env, jobject obj, j
 	return result;
 }
 
+/* lua_gcparam() */
+#if LUA_VERSION_NUM >= 505
+static int gcparam_protected (lua_State *L) {
+	lua_pushinteger(L, lua_gc(L, LUA_GCPARAM, lua_tointeger(L, 1),
+			lua_tointeger(L, 2)));
+	return 1;
+}
+#endif
+JNIEXPORT jint JNICALL JNI_LUASTATE_METHOD(lua_1gcparam) (JNIEnv *env, jobject obj, jint param, jint value) {
+	lua_State *L;
+	jint result = 0;
+
+	JNLUA_ENV(env);
+	L = getluathread(obj);
+#if LUA_VERSION_NUM >= 505
+	if (checkstack(L, JNLUA_MINSTACK)
+			&& checkarg(param >= 0 && param < LUA_GCPN, "illegal gc parameter")) {
+		lua_pushcfunction(L, gcparam_protected);
+		lua_pushinteger(L, param);
+		lua_pushinteger(L, value);
+		JNLUA_PCALL(L, 2, 1);
+		result = (jint)lua_tointeger(L, -1);
+		lua_pop(L, 1);
+	}
+#endif
+	return result;
+}
+
 /* ---- Registration ---- */
 /* lua_openlib() */
 static int openlib_protected (lua_State *L) {
@@ -451,10 +479,12 @@ static int openlib_protected (lua_State *L) {
 		libname = LUA_STRLIBNAME;
 		openfunc = luaopen_string;
 		break;
+#if LUA_VERSION_NUM <= 503
 	case 7:
 		libname = LUA_BITLIBNAME;
 		openfunc = luaopen_bit32;
 		break;
+#endif
 	case 8:
 		libname = LUA_MATHLIBNAME;
 		openfunc = luaopen_math;
@@ -483,10 +513,14 @@ static int openlib_protected (lua_State *L) {
 }
 
 static int openlib_isvalid(jint lib) {
-#if LUA_VERSION_NUM >= 503
+#if LUA_VERSION_NUM >= 504
+	if (lib == 7) return 0;
+#elif LUA_VERSION_NUM >= 503
 #ifndef LUA_COMPAT_BITLIB
 	if (lib == 7) return 0;
 #endif
+#endif
+#if LUA_VERSION_NUM >= 503
 	if (lib == 10) return 1;
 #endif
 #ifdef JNLUA_USE_ERIS
@@ -651,7 +685,8 @@ JNIEXPORT void JNICALL JNI_LUASTATE_METHOD(lua_1pushboolean) (JNIEnv *env, jobje
 
 /* lua_pushbytearray() */
 static int pushbytearray_protected (lua_State *L) {
-	lua_pushlstring(L, (jbyte*)lua_touserdata(L, 1), (jsize)lua_tounsigned(L, 2));
+	lua_pushlstring(L, (const char*) lua_touserdata(L, 1),
+			(jsize) lua_tointeger(L, 2));
 	return 1;
 }
 JNIEXPORT void JNICALL JNI_LUASTATE_METHOD(lua_1pushbytearray) (JNIEnv *env, jobject obj, jbyteArray ba) {
@@ -666,7 +701,7 @@ JNIEXPORT void JNICALL JNI_LUASTATE_METHOD(lua_1pushbytearray) (JNIEnv *env, job
 		pushbytearray_length = (*env)->GetArrayLength(env, ba);
 		lua_pushcfunction(L, pushbytearray_protected);
 		lua_pushlightuserdata(L, (void*)pushbytearray_b);
-		lua_pushunsigned(L, pushbytearray_length);
+		lua_pushinteger(L, (lua_Integer) pushbytearray_length);
 		JNLUA_PCALL(L, 2, 1);
 	}
 	if (pushbytearray_b) {
@@ -973,7 +1008,7 @@ static int tobytearray_protected (lua_State *L) {
 	size_t tobytearray_length;
 	const char *tobytearray_result = lua_tolstring(L, 1, &tobytearray_length);
 	lua_pushlightuserdata(L, (void*)tobytearray_result);
-	lua_pushunsigned(L, tobytearray_length);
+	lua_pushinteger(L, (lua_Integer) tobytearray_length);
 	return 2;
 }
 JNIEXPORT jbyteArray JNICALL JNI_LUASTATE_METHOD(lua_1tobytearray) (JNIEnv *env, jobject obj, jint index) {
@@ -992,7 +1027,7 @@ JNIEXPORT jbyteArray JNICALL JNI_LUASTATE_METHOD(lua_1tobytearray) (JNIEnv *env,
 		lua_pushvalue(L, index);
 		JNLUA_PCALL(L, 1, 2);
 		tobytearray_result = (const char*)lua_touserdata(L, -2);
-		tobytearray_length = lua_tounsigned(L, -1);
+		tobytearray_length = (size_t) lua_tointeger(L, -1);
 		lua_pop(L, 2);
 	}
 	if (!tobytearray_result) {
@@ -1658,11 +1693,17 @@ JNIEXPORT jint JNICALL JNI_LUASTATE_METHOD(lua_1resume) (JNIEnv *env, jobject ob
 		T = lua_tothread(L, index);
 		if (checkstack(T, nargs)) {
 			lua_xmove(L, T, nargs);
+#if LUA_VERSION_NUM >= 504
+			status = lua_resume(T, L, nargs, &nresults);
+#else
 			status = lua_resume(T, L, nargs);
+#endif
 			switch (status) {
 			case LUA_OK:
 			case LUA_YIELD:
+#if LUA_VERSION_NUM < 504
 				nresults = lua_gettop(T);
+#endif
 				if (checkstack(L, nresults)) {
 					lua_xmove(T, L, nresults);
 				}
@@ -2455,10 +2496,12 @@ static int throw_protected (lua_State *L) {
 		class = luamemoryallocationexception_class;
 		id = luamemoryallocationexception_id;
 		break;
+#if LUA_VERSION_NUM <= 503
 	case LUA_ERRGCMM:
 		class = luagcmetamethodexception_class;
 		id = luagcmetamethodexception_id;
 		break;
+#endif
 	case LUA_ERRERR:
 		class = luamessagehandlerexception_class;
 		id = luamessagehandlerexception_id;

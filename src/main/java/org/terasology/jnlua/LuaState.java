@@ -125,6 +125,12 @@ public abstract class LuaState {
 	/**
 	 * Registry index of the main thread.
 	 * 
+	 * <p>
+	 * This is the index used by Lua 5.2 to 5.4. Lua 5.5 moved the main thread
+	 * to index 3; use {@link #getMainThreadRegistryIndex()} to obtain the
+	 * index of the Lua version backing a state.
+	 * </p>
+	 * 
 	 * @since JNLua 1.0.0
 	 */
 	public static final int RIDX_MAINTHREAD = 1;
@@ -135,6 +141,17 @@ public abstract class LuaState {
 	 * @since JNLua 1.0.0
 	 */
 	public static final int RIDX_GLOBALS = 2;
+
+	/**
+	 * GC parameter selecting the pause between collections, as used by Lua
+	 * 5.5.
+	 */
+	private static final int GC_PARAM_PAUSE = 3;
+
+	/**
+	 * GC parameter selecting the step multiplier, as used by Lua 5.5.
+	 */
+	private static final int GC_PARAM_STEPMUL = 4;
 
 	/**
 	 * The JNLua version. The format is &lt;major&gt;.&lt;minor&gt;.
@@ -532,6 +549,20 @@ public abstract class LuaState {
 	}
 
 	/**
+	 * Returns the registry index of the main thread in the Lua version backing
+	 * this state.
+	 * 
+	 * <p>
+	 * Lua 5.5 moved the main thread from index 1 to index 3.
+	 * </p>
+	 * 
+	 * @return the registry index of the main thread
+	 */
+	public int getMainThreadRegistryIndex() {
+		return LUA_VERSION_NUM >= 505 ? 3 : RIDX_MAINTHREAD;
+	}
+
+	/**
 	 * Closes this Lua state and releases all resources.
 	 * 
 	 * <p>
@@ -555,6 +586,17 @@ public abstract class LuaState {
 	 */
 	public synchronized int gc(GcAction what, int data) {
 		check();
+
+		// Lua 5.5 replaced the separate pause and step multiplier actions by
+		// GC parameters.
+		if (LUA_VERSION_NUM >= 505) {
+			if (what == GcAction.SETPAUSE) {
+				return lua_gcparam(GC_PARAM_PAUSE, data);
+			} else if (what == GcAction.SETSTEPMUL) {
+				return lua_gcparam(GC_PARAM_STEPMUL, data);
+			}
+		}
+
 		int value = what.getValue(this);
 		if (value < 0) {
 			throw new IllegalArgumentException("Invalid GC action " + what.name());
@@ -2457,6 +2499,8 @@ public abstract class LuaState {
 
 	abstract int lua_gc(int what, int data);
 
+	abstract int lua_gcparam(int param, int value);
+
 	abstract void lua_openlib(int lib);
 
 	abstract void lua_load(InputStream inputStream, String chunkname,
@@ -2744,13 +2788,19 @@ public abstract class LuaState {
 
 		/**
 		 * Set pause.
+		 *
+		 * Not available in Lua 5.5, where it is replaced by the equivalent
+		 * GC parameter.
 		 */
-		SETPAUSE(6, 6),
+		SETPAUSE(6, 6, -1),
 
 		/**
 		 * Set step multiplier.
+		 *
+		 * Not available in Lua 5.5, where it is replaced by the equivalent
+		 * GC parameter.
 		 */
-		SETSTEPMUL(7, 7),
+		SETSTEPMUL(7, 7, -1),
 
 		/**
 		 * Undocumented.
@@ -2764,7 +2814,7 @@ public abstract class LuaState {
 		 * 
 		 * @since JNLua 1.0.0
 		 */
-		ISRUNNING(9, 9),
+		ISRUNNING(9, 9, 6),
 
 		/**
 		 * Changes the collector to the generational mode.
@@ -2773,25 +2823,33 @@ public abstract class LuaState {
 		 * 
 		 * @since JNLua 1.0.0
 		 */
-		GEN(10, -1),
+		GEN(10, -1, 7),
 
 		/**
 		 * Changes the collector to the incremental mode.
 		 * 
 		 * @since JNLua 1.0.0
 		 */
-		INC(11, -1);
+		INC(11, -1, 8);
 
 		final int lua52value;
 		final int lua53value;
+		final int lua55value;
 
 		GcAction(int lua52value, int lua53value) {
+			this(lua52value, lua53value, lua53value);
+		}
+
+		GcAction(int lua52value, int lua53value, int lua55value) {
 			this.lua52value = lua52value;
 			this.lua53value = lua53value;
+			this.lua55value = lua55value;
 		}
 
 		public int getValue(LuaState state) {
-			if (state.LUA_VERSION_NUM >= 503) {
+			if (state.LUA_VERSION_NUM >= 505) {
+				return lua55value;
+			} else if (state.LUA_VERSION_NUM >= 503) {
 				return lua53value;
 			} else {
 				return lua52value;

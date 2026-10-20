@@ -116,9 +116,16 @@ function m.testMeta ()
 	assert(cnt == 1)
 	
 	-- ipairs
+	-- Lua 5.4 removed the __ipairs metamethod, so iterate by length there
 	cnt = 0
-	for i, j in ipairs(intArray) do
-		cnt = cnt + 1
+	if tonumber(_VERSION:match("%d+%.%d+")) >= 5.4 then
+		for i = 1, #intArray do
+			cnt = cnt + 1
+		end
+	else
+		for i, j in ipairs(intArray) do
+			cnt = cnt + 1
+		end
 	end
 	assert(cnt == 2)
 end

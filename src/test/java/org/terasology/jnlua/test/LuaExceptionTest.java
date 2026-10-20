@@ -26,6 +26,7 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 
+import org.junit.Assume;
 import org.junit.Test;
 
 import org.terasology.jnlua.JavaFunction;
@@ -147,6 +148,9 @@ public class LuaExceptionTest extends AbstractLuaTest {
 	 */
 	@Test
 	public void testLuaGcMetamethodException() throws Exception {
+		// Lua 5.4 removed LUA_ERRGCMM; errors in __gc are reported as warnings
+		// instead of raising an error.
+		Assume.assumeTrue(luaState.LUA_VERSION_NUM < 504);
 		LuaGcMetamethodException luaGcMetamethodException = null;
 		luaState.openLib(LuaState.Library.BASE);
 		luaState.pop(1);

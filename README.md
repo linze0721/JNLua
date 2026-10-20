@@ -35,9 +35,9 @@ way. The JSR 223 provider also supports the optional Compilable and Invocable in
 
 Additionally, the Terasology version provides the following:
 
-- **Support for [Eris](https://github.com/fnuecke/eris)**, a modified version of the Lua virtual machine with support for state serialization.
+- **Support for [Eris](https://github.com/fnuecke/eris)**, a modified version of the Lua virtual machine with support for state serialization. Eris is available for Lua 5.2 to 5.4; the Lua 5.5 natives are built without it.
 - **Memory usage limiting** for additional sandboxing
-- **Simultaneous Lua 5.2 and Lua 5.3 support**
+- **Simultaneous Lua 5.2, 5.3, 5.4 and 5.5 support**
 
 ## Building
 
@@ -45,7 +45,7 @@ To build the Java side of JNLua, a simple "./gradlew build" is sufficient.
 
 Building the natives is more involved. Generally, JNLua expects natives to be present with the following filenames:
 
-libjnlua-[5.2,5.3]-[windows,linux]-[i686,amd64].[dll,so]
+libjnlua-[5.2,5.3,5.4,5.5]-[windows,linux]-[i686,amd64].[dll,so]
 
 To build the natives on Linux you need:
 
@@ -55,7 +55,13 @@ To build the natives on Linux you need:
 
 Then simply run `./build-natives-eris.sh` and with a little luck you now have shiny new natives compiled for Linux (and Windows).
 
-Note that during the script execution [Eris](https://github.com/fnuecke/eris) will be cloned into a subdir `eris`.
+Note that during the script execution [Eris](https://github.com/fnuecke/eris) will be cloned into a subdir `eris`, and the official Lua 5.5 sources will be downloaded into a subdir `lua-5.5.1`. Lua 5.5 is built without Eris, as Eris has no 5.5 branch.
+
+The unit tests run against Lua 5.3 by default. Set the system property `jnlua.luaVersion` to `5.2`, `5.4` or `5.5` to run them against another version, for example:
+
+    ./gradlew test -Djnlua.luaVersion=5.5
+
+The JSR 223 script engine and the console currently create Lua 5.3 states.
 
 On Mac you need general development tools and `JAVA_HOME` set, to for instance `/Library/Java/JavaVirtualMachines/jdk-10.0.1.jdk/Contents/Home`
 

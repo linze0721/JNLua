@@ -57,6 +57,9 @@ public class LuaState52 extends LuaState {
     native int lua_gc(int what, int data);
 
     @Override
+    native int lua_gcparam(int param, int value);
+
+    @Override
     native void lua_openlib(int lib);
 
     @Override

@@ -59,7 +59,8 @@ public class LuaStateTest extends AbstractLuaTest {
 	 */
 	@Test
 	public void testRegistryIndex() {
-		luaState.rawGet(luaState.REGISTRYINDEX, LuaState.RIDX_MAINTHREAD);
+		luaState.rawGet(luaState.REGISTRYINDEX,
+				luaState.getMainThreadRegistryIndex());
 		assertEquals(LuaType.THREAD, luaState.type(-1));
 		luaState.pop(1);
 		luaState.rawGet(luaState.REGISTRYINDEX, LuaState.RIDX_GLOBALS);
@@ -165,7 +166,8 @@ public class LuaStateTest extends AbstractLuaTest {
 		assertEquals(0, luaState.gc(GcAction.COLLECT, 0));
 		assertTrue((long) luaState.gc(GcAction.COUNT, 0) * 1024
 				+ luaState.gc(GcAction.COUNTB, 0) > 0);
-		assertEquals(0, luaState.gc(GcAction.STEP, 0));
+		// A step may complete a collection cycle and report 1
+		assertTrue(luaState.gc(GcAction.STEP, 0) <= 1);
 		assertTrue(luaState.gc(GcAction.SETPAUSE, 200) > 0);
 		assertTrue(luaState.gc(GcAction.SETSTEPMUL, 200) > 0);
 		// Do not test GC modes, as they were experimental in Lua 5.2 and deprecated in Lua 5.3.
@@ -193,13 +195,13 @@ public class LuaStateTest extends AbstractLuaTest {
 		testOpenLib(LuaState.Library.IO, "io");
 		testOpenLib(LuaState.Library.OS, "os");
 		testOpenLib(LuaState.Library.STRING, "string");
-		if (luaState instanceof LuaState52) {
+		if (luaState.LUA_VERSION_NUM < 503) {
 			testOpenLib(LuaState.Library.BIT32, "bit32");
 		}
 		testOpenLib(LuaState.Library.MATH, "math");
 		testOpenLib(LuaState.Library.DEBUG, "debug");
 		testOpenLib(LuaState.Library.JAVA, "java");
-		if (luaState instanceof LuaState53) {
+		if (luaState.LUA_VERSION_NUM >= 503) {
 			testOpenLib(LuaState.Library.UTF8, "utf8");
 		}
 
@@ -212,7 +214,7 @@ public class LuaStateTest extends AbstractLuaTest {
 	 */
 	@Test
 	public void testOpenLibs() throws Exception {
-		LuaState newLuaState = new LuaState53();
+		LuaState newLuaState = createLuaState();
 		newLuaState.getGlobal("table");
 		assertEquals(LuaType.NIL, newLuaState.type(-1));
 		newLuaState.pop(1);
@@ -1167,8 +1169,14 @@ public class LuaStateTest extends AbstractLuaTest {
 		assertEquals(0L, luaState.toPointer(1));
 		assertEquals(0L, luaState.toPointer(2));
 		assertEquals(0L, luaState.toPointer(3));
-		assertEquals(0L, luaState.toPointer(4));
-		assertEquals(0L, luaState.toPointer(5));
+		// Lua 5.4 started returning a pointer for strings as well
+		if (luaState.LUA_VERSION_NUM < 504) {
+			assertEquals(0L, luaState.toPointer(4));
+			assertEquals(0L, luaState.toPointer(5));
+		} else {
+			assertTrue(luaState.toPointer(4) != 0L);
+			assertTrue(luaState.toPointer(5) != 0L);
+		}
 		assertTrue(luaState.toPointer(6) != 0L);
 		assertTrue(luaState.toPointer(7) != 0L);
 		assertTrue(luaState.toPointer(8) != 0L);

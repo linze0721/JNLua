@@ -28,12 +28,38 @@ import org.junit.After;
 import org.junit.Before;
 
 import org.terasology.jnlua.LuaState;
+import org.terasology.jnlua.LuaState52;
 import org.terasology.jnlua.LuaState53;
+import org.terasology.jnlua.LuaState54;
+import org.terasology.jnlua.LuaState55;
 
 /**
  * Abstract base class for JNLua unit tests.
  */
 public abstract class AbstractLuaTest {
+	// -- Static
+	/**
+	 * The Lua version the tests run against. Set via the system property
+	 * <code>jnlua.luaVersion</code>; defaults to 5.3.
+	 */
+	protected static final String LUA_VERSION = System.getProperty(
+			"jnlua.luaVersion", "5.3");
+
+	/**
+	 * Creates a Lua state of the version the tests run against.
+	 */
+	protected static LuaState createLuaState() {
+		if ("5.2".equals(LUA_VERSION)) {
+			return new LuaState52();
+		} else if ("5.4".equals(LUA_VERSION)) {
+			return new LuaState54();
+		} else if ("5.5".equals(LUA_VERSION)) {
+			return new LuaState55();
+		} else {
+			return new LuaState53();
+		}
+	}
+
 	// -- State
 	protected LuaState luaState;
 
@@ -43,7 +69,7 @@ public abstract class AbstractLuaTest {
 	 */
 	@Before
 	public void setup() throws Exception {
-		luaState = new LuaState53();
+		luaState = createLuaState();
 	}
 
 	/**

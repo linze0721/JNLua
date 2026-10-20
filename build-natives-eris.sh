@@ -1,16 +1,24 @@
 #!/bin/bash
-mkdir native-build
-mkdir native-debug
-rm native-build/*.so native-build/*.dll
-rm native-debug/*.so native-debug/*.dll
+mkdir -p native-build
+mkdir -p native-debug
+rm -f native-build/*.so native-build/*.dll
+rm -f native-debug/*.so native-debug/*.dll
+
+# Lua 5.5 has no Eris branch, so it is built from the official sources
+# without persistence support.
+LUA55_VERSION="5.5.1"
 
 if [ ! -d eris ]; then
 	git clone https://github.com/MovingBlocks/eris
 fi
+if [ ! -d lua-$LUA55_VERSION ]; then
+	curl -LO https://www.lua.org/ftp/lua-$LUA55_VERSION.tar.gz
+	tar xzf lua-$LUA55_VERSION.tar.gz
+fi
 
 cd native
 
-for lua_ver in 5.2 5.3; do
+for lua_ver in 5.2 5.3 5.4 5.5; do
 for arch_type in i686 amd64; do
 for plat_type in windows linux; do
 
@@ -39,26 +47,46 @@ if [ "$plat_type" = "windows" ]; then
 	MY_LIB_SUFFIX="dll"
 fi
 
-cd ../eris
+MY_ERIS_CFLAGS="-DJNLUA_USE_ERIS"
 
 if [ "$lua_ver" == "5.2" ]; then
 	MY_JNLUA_SUFFIX="52"
 	MY_LUA_CFLAGS=""
-	git checkout master
-else
+	ERIS_BRANCH="master"
+	LUA_SRC_DIR="../eris"
+elif [ "$lua_ver" == "5.3" ]; then
 	MY_JNLUA_SUFFIX="53"
 	MY_LUA_CFLAGS="-DLUA_COMPAT_5_2"
-	git checkout master-lua5.3
+	ERIS_BRANCH="master-lua5.3"
+	LUA_SRC_DIR="../eris"
+elif [ "$lua_ver" == "5.4" ]; then
+	MY_JNLUA_SUFFIX="54"
+	MY_LUA_CFLAGS="-DLUA_COMPAT_5_3 -Wno-error=incompatible-pointer-types"
+	ERIS_BRANCH="master-lua5.4"
+	LUA_SRC_DIR="../eris"
+else
+	MY_JNLUA_SUFFIX="55"
+	MY_LUA_CFLAGS=""
+	MY_ERIS_CFLAGS=""
+	LUA_SRC_DIR="../lua-$LUA55_VERSION"
 fi
 
-make clean
-make CC="$MY_GCC" CFLAGS="$MY_CFLAGS $MY_LUA_CFLAGS" LDFLAGS="$MY_LDFLAGS" $LUA_TYPE
+cd "$LUA_SRC_DIR"
+
+if [ "$lua_ver" == "5.5" ]; then
+	make clean
+	make CC="$MY_GCC" MYCFLAGS="$MY_CFLAGS" $LUA_TYPE
+else
+	git checkout "$ERIS_BRANCH"
+	make clean
+	make CC="$MY_GCC" CFLAGS="$MY_CFLAGS $MY_LUA_CFLAGS" LDFLAGS="$MY_LDFLAGS" $LUA_TYPE
+fi
 
 cd ../native
-rm *.dll *.so build/*.o
+rm -f *.dll *.so build/*.o
 
-CFLAGS="$MY_CFLAGS -DJNLUA_USE_ERIS -DLUA_USE_POSIX" LDFLAGS="$MY_LDFLAGS" ARCH=amd64 JNLUA_SUFFIX="$MY_JNLUA_SUFFIX" \
-  LUA_LIB_NAME=lua LUA_INC_DIR=../eris/src LUA_LIB_DIR=../eris/src LIB_SUFFIX="$MY_LIB_SUFFIX" \
+CFLAGS="$MY_CFLAGS $MY_ERIS_CFLAGS -DLUA_USE_POSIX" LDFLAGS="$MY_LDFLAGS" ARCH=amd64 JNLUA_SUFFIX="$MY_JNLUA_SUFFIX" \
+  LUA_LIB_NAME=lua LUA_INC_DIR="$LUA_SRC_DIR/src" LUA_LIB_DIR="$LUA_SRC_DIR/src" LIB_SUFFIX="$MY_LIB_SUFFIX" \
   CC="$MY_GCC" LUA_VERSION="$lua_ver" \
   make -f Makefile.linux libjnlua
 

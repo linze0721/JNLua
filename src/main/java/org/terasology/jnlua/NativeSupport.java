@@ -98,6 +98,10 @@ public final class NativeSupport {
 
 			if (src == LuaState53.class) {
 				builder.append("5.3-");
+			} else if (src == LuaState54.class) {
+				builder.append("5.4-");
+			} else if (src == LuaState55.class) {
+				builder.append("5.5-");
 			} else {
 				builder.append("5.2-");
 			}
