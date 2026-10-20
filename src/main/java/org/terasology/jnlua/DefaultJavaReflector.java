@@ -385,7 +385,11 @@ public class DefaultJavaReflector implements JavaReflector {
 	private class Index implements JavaFunction {
 		public int invoke(LuaState luaState) {
 			// Get object and class
-			Object object = luaState.toJavaObject(1, Object.class);
+			Object object = luaState.toJavaObjectRaw(1);
+			if (object == null || object instanceof TypedJavaObject) {
+				// Fall back to the converter, which unwraps cast values.
+				object = luaState.toJavaObject(1, Object.class);
+			}
 			Class<?> objectClass = getObjectClass(object);
 
 			// Handle arrays
@@ -905,6 +909,7 @@ public class DefaultJavaReflector implements JavaReflector {
 		// -- State
 		private Class<?> clazz;
 		private List<Invocable> invocables;
+		private volatile LastDispatch lastDispatch;
 		// One registry reference to this accessor's Lua proxy per state.
 		private Map<LuaState, Integer> proxyRefs = Collections
 				.synchronizedMap(new WeakHashMap<LuaState, Integer>());
@@ -978,7 +983,11 @@ public class DefaultJavaReflector implements JavaReflector {
 		@Override
 		public int invoke(LuaState luaState) {
 			// Argument sanity checks
-			Object object = luaState.checkJavaObject(1, Object.class);
+			Object object = luaState.toJavaObjectRaw(1);
+			if (object == null || object instanceof TypedJavaObject) {
+				// Let the converter unwrap cast values or produce the usual error.
+				object = luaState.checkJavaObject(1, Object.class);
+			}
 			Class<?> objectClass = getObjectClass(object);
 			luaState.checkArg(1, clazz.isAssignableFrom(objectClass), String
 					.format("class %s is not a subclass of %s",
@@ -988,31 +997,41 @@ public class DefaultJavaReflector implements JavaReflector {
 				object = null;
 			}
 
-			// Invocable dispatch
-			LuaCallSignature luaCallSignature = getLuaCallSignature(luaState);
+			// Invocable dispatch, reusing the last one if the call shape matches
+			int argCount = luaState.getTop() - 1;
+			boolean staticDispatch = object == null;
 			Invocable invocable;
-			invocableDispatchLock.readLock().lock();
-			try {
-				invocable = invocableDispatches.get(luaCallSignature);
-			} finally {
-				invocableDispatchLock.readLock().unlock();
-			}
-			if (invocable == null) {
-				invocable = dispatchInvocable(luaState, object == null);
-				invocableDispatchLock.writeLock().lock();
+			LastDispatch lastDispatch = this.lastDispatch;
+			if (lastDispatch != null
+					&& lastDispatch.matches(luaState, argCount, staticDispatch)) {
+				invocable = lastDispatch.invocable;
+			} else {
+				LuaCallSignature luaCallSignature = getLuaCallSignature(luaState,
+						argCount);
+				invocableDispatchLock.readLock().lock();
 				try {
-					if (!invocableDispatches.containsKey(luaCallSignature)) {
-						invocableDispatches.put(luaCallSignature, invocable);
-					} else {
-						invocable = invocableDispatches.get(luaCallSignature);
-					}
+					invocable = invocableDispatches.get(luaCallSignature);
 				} finally {
-					invocableDispatchLock.writeLock().unlock();
+					invocableDispatchLock.readLock().unlock();
 				}
+				if (invocable == null) {
+					invocable = dispatchInvocable(luaState, staticDispatch);
+					invocableDispatchLock.writeLock().lock();
+					try {
+						if (!invocableDispatches.containsKey(luaCallSignature)) {
+							invocableDispatches.put(luaCallSignature, invocable);
+						} else {
+							invocable = invocableDispatches.get(luaCallSignature);
+						}
+					} finally {
+						invocableDispatchLock.writeLock().unlock();
+					}
+				}
+				this.lastDispatch = LastDispatch.create(invocable, luaState,
+						argCount, staticDispatch);
 			}
 
 			// Prepare arguments
-			int argCount = luaState.getTop() - 1;
 			int parameterCount = invocable.getParameterCount();
 			Object[] arguments = new Object[parameterCount];
 			if (invocable.isVarArgs()) {
@@ -1068,8 +1087,8 @@ public class DefaultJavaReflector implements JavaReflector {
 		/**
 		 * Creates a Lua call signature.
 		 */
-		private LuaCallSignature getLuaCallSignature(LuaState luaState) {
-			int argCount = luaState.getTop() - 1;
+		private LuaCallSignature getLuaCallSignature(LuaState luaState,
+				int argCount) {
 			Object[] types = new Object[argCount];
 			for (int i = 0; i < argCount; i++) {
 				LuaType type = luaState.type(i + 2);
@@ -1693,6 +1712,54 @@ public class DefaultJavaReflector implements JavaReflector {
 		@Override
 		public String toString() {
 			return interfaze.toString();
+		}
+	}
+
+	/**
+	 * Caches the last dispatched invocable. The call shape is the sequence
+	 * of Lua types of the arguments and whether the call is static; types
+	 * whose dispatch depends on the identity of the value (functions,
+	 * userdata, threads) make a call shape uncacheable.
+	 */
+	private static class LastDispatch {
+		final Invocable invocable;
+		final LuaType[] types;
+		final boolean staticDispatch;
+
+		LastDispatch(Invocable invocable, LuaType[] types,
+				boolean staticDispatch) {
+			this.invocable = invocable;
+			this.types = types;
+			this.staticDispatch = staticDispatch;
+		}
+
+		static LastDispatch create(Invocable invocable, LuaState luaState,
+				int argCount, boolean staticDispatch) {
+			LuaType[] types = new LuaType[argCount];
+			for (int i = 0; i < argCount; i++) {
+				LuaType type = luaState.type(i + 2);
+				if (type == null || type == LuaType.FUNCTION
+						|| type == LuaType.USERDATA
+						|| type == LuaType.THREAD) {
+					return null;
+				}
+				types[i] = type;
+			}
+			return new LastDispatch(invocable, types, staticDispatch);
+		}
+
+		boolean matches(LuaState luaState, int argCount,
+				boolean staticDispatch) {
+			if (staticDispatch != this.staticDispatch
+					|| types.length != argCount) {
+				return false;
+			}
+			for (int i = 0; i < argCount; i++) {
+				if (luaState.type(i + 2) != types[i]) {
+					return false;
+				}
+			}
+			return true;
 		}
 	}
 

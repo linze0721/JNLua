@@ -154,6 +154,12 @@ public abstract class LuaState {
 	private static final int GC_PARAM_STEPMUL = 4;
 
 	/**
+	 * The Lua types indexed by the values returned by the native type query.
+	 * Cached because <code>values()</code> clones the array on each call.
+	 */
+	private static final LuaType[] LUA_TYPES = LuaType.values();
+
+	/**
 	 * The JNLua version. The format is &lt;major&gt;.&lt;minor&gt;.
 	 */
 	public static final String VERSION = "1.0";
@@ -1444,7 +1450,7 @@ public abstract class LuaState {
 	public synchronized LuaType type(int index) {
 		check();
 		int type = lua_type(index);
-		return type >= 0 ? LuaType.values()[type] : null;
+		return type >= 0 && type < LUA_TYPES.length ? LUA_TYPES[type] : null;
 	}
 
 	/**

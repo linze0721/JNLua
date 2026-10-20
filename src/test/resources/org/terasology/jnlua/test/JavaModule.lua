@@ -62,6 +62,8 @@ function m.testCast ()
 	local sb = StringBuilder:new()
 	sb:append(java.cast(1, "int"))
 	assert(sb:toString() == "1")  
+	-- A cast value must still dispatch methods on the wrapped object
+	assert(java.cast(sb, "java.lang.Object"):toString() == "1")
 end
 
 -- java.proxy
