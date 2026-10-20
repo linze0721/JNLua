@@ -33,6 +33,8 @@ import java.lang.reflect.Method;
 import java.lang.reflect.Proxy;
 import java.nio.charset.Charset;
 import java.util.HashSet;
+import java.util.IdentityHashMap;
+import java.util.Map;
 import java.util.Set;
 
 /**
@@ -254,6 +256,7 @@ public abstract class LuaState {
 	/**
 	 * Set of Lua proxy phantom references for pre-mortem cleanup.
 	 */
+	private Map<Object, Integer> accessorRefs = new IdentityHashMap<Object, Integer>();
 	private Set<LuaValueProxyRef> proxySet = new HashSet<LuaValueProxyRef>();
 
 	/**
@@ -1910,6 +1913,23 @@ public abstract class LuaState {
 		return returnCount;
 	}
 
+	// -- Accessor references
+	/**
+	 * Returns the registry reference cached for an accessor, or -1 if none is
+	 * cached for this state.
+	 */
+	synchronized int getAccessorRef(Object accessor) {
+		Integer ref = accessorRefs.get(accessor);
+		return ref != null ? ref : -1;
+	}
+
+	/**
+	 * Caches a registry reference for an accessor in this state.
+	 */
+	synchronized void putAccessorRef(Object accessor, int ref) {
+		accessorRefs.put(accessor, ref);
+	}
+
 	// -- Reference
 	/**
 	 * Stores the value on top of the stack in the table at the specified index
@@ -2413,6 +2433,7 @@ public abstract class LuaState {
 			if (isOpenInternal()) {
 				throw new IllegalStateException("cannot close");
 			}
+			accessorRefs.clear();
 		}
 	}
 
