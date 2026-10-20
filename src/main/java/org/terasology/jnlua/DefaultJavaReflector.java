@@ -35,6 +35,7 @@ import java.lang.reflect.Modifier;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
@@ -42,6 +43,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.NavigableMap;
 import java.util.Set;
+import java.util.WeakHashMap;
 import java.util.Map.Entry;
 import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
@@ -903,6 +905,9 @@ public class DefaultJavaReflector implements JavaReflector {
 		// -- State
 		private Class<?> clazz;
 		private List<Invocable> invocables;
+		// One registry reference to this accessor's Lua proxy per state.
+		private Map<LuaState, Integer> proxyRefs = Collections
+				.synchronizedMap(new WeakHashMap<LuaState, Integer>());
 
 		// -- Construction
 		/**
@@ -932,11 +937,13 @@ public class DefaultJavaReflector implements JavaReflector {
 		// -- Accessor methods
 		@Override
 		public void read(LuaState luaState, Object object) {
-			Class<?> objectClass = getObjectClass(object);
-			if (objectClass == object) {
-				object = null;
+			Integer ref = proxyRefs.get(luaState);
+			if (ref == null) {
+				luaState.pushJavaFunction(this);
+				ref = luaState.ref(luaState.REGISTRYINDEX);
+				proxyRefs.put(luaState, ref);
 			}
-			luaState.pushJavaFunction(this);
+			luaState.rawGet(luaState.REGISTRYINDEX, ref);
 		}
 
 		@Override

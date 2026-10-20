@@ -22,7 +22,15 @@
 
 package org.terasology.jnlua.test;
 
+import static org.junit.Assert.assertEquals;
+
+import java.util.ArrayList;
+import java.util.List;
+
 import org.junit.Test;
+
+import org.terasology.jnlua.LuaState;
+import org.terasology.jnlua.LuaState53;
 
 /**
  * Contains unit tests for Java reflection.
@@ -35,5 +43,33 @@ public class JavaReflectionTest extends AbstractLuaTest {
 	@Test
 	public void testReflection() throws Exception {
 		runTest("org/terasology/jnlua/test/Reflection.lua", "Reflection");
+	}
+
+	/**
+	 * Tests that method proxies are cached per state and can be reused.
+	 */
+	@Test
+	public void testMethodProxyCaching() throws Exception {
+		luaState.openLibs();
+		List<String> values = new ArrayList<String>();
+		luaState.pushJavaObject(values);
+		luaState.setGlobal("values");
+		luaState.load("for i = 1, 100 do values:add('x') end return values:size()", "=proxy");
+		luaState.call(0, 1);
+		assertEquals(100, luaState.toInteger(-1));
+		luaState.pop(1);
+
+		LuaState other = new LuaState53();
+		try {
+			other.openLibs();
+			List<String> otherValues = new ArrayList<String>();
+			other.pushJavaObject(otherValues);
+			other.setGlobal("values");
+			other.load("values:add('y'); return values:size()", "=proxy");
+			other.call(0, 1);
+			assertEquals(1, other.toInteger(-1));
+		} finally {
+			other.close();
+		}
 	}
 }
