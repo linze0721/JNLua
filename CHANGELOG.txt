@@ -14,13 +14,13 @@ SETSTEPMUL are mapped to the new GC parameters.
 - The unit tests can run against another Lua version via the system property
 jnlua.luaVersion.
 
+- The natives can be cross-compiled for Windows (amd64 and i686) with
+MinGW-w64; a win32 JNI header is included for that purpose.
+
 - Method proxy references are cached per Lua state, and findable method
 dispatches reuse the last call shape.
 
 - Lua string conversions use a direct path for short ASCII strings.
-
-- Accessor references are held by the Lua state, avoiding a weak map lookup
-per field or method access.
 
 
 * Release 1.1.0-Terasology

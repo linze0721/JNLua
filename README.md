@@ -55,7 +55,9 @@ To build the natives on Linux you need:
 
 Then simply run `./build-natives-eris.sh` and with a little luck you now have shiny new natives compiled for Linux (and Windows).
 
-Note that during the script execution [Eris](https://github.com/fnuecke/eris) will be cloned into a subdir `eris`, and the official Lua 5.5 sources will be downloaded into a subdir `lua-5.5.1`. Lua 5.5 is built without Eris, as Eris has no 5.5 branch.
+Note that during the script execution [Eris](https://github.com/fnuecke/eris) will be cloned into a subdir `eris`, and the official Lua 5.5 sources will be downloaded into a subdir `lua-5.5.1`. Lua 5.5 is built without Eris: Eris has no Lua 5.5 branch, and porting it requires adapting its persistence code to the relocation-aware stack representation introduced in Lua 5.5.
+
+Windows natives can be cross-compiled with MinGW-w64, for both `amd64` and `i686`. Linux JDK distributions do not ship the win32 JNI headers, so the script uses `native/win32/jni_md.h` when targeting Windows. Building the 32-bit Linux natives requires a 32-bit toolchain and libraries (`gcc-multilib` and a 32-bit libc).
 
 The unit tests run against Lua 5.3 by default. Set the system property `jnlua.luaVersion` to `5.2`, `5.4` or `5.5` to run them against another version, for example:
 

@@ -7,6 +7,7 @@ LUA_INC_DIR?=/usr/include/lua$(LUA_VERSION)
 LUA_LIB_NAME?=lua$(LUA_VERSION)
 LIB_SUFFIX?=so
 ARCH?=amd64
+JNI_PLATFORM?=linux
 CFLAGS?=-O2 -DLUA_USE_POSIX
 LDFLAGS?=
 
@@ -16,7 +17,7 @@ LD=$(CC)
 
 # Default arguments
 CFLAGS+=-c -fno-strict-aliasing -fPIC -Wall -DNDEBUG -D_REENTRANT -DJNLUA_SUFFIX=$(JNLUA_SUFFIX)
-CFLAGS+=-I$(JAVA_HOME)/include -I$(JAVA_HOME)/include/linux
+CFLAGS+=-I$(JAVA_HOME)/include -I$(JAVA_HOME)/include/$(JNI_PLATFORM)
 LDFLAGS+=-shared
 
 # Description blocks
@@ -28,14 +29,14 @@ libjnlua$(JNLUA_SUFFIX).$(LIB_SUFFIX): build/jnlua.o
 
 build/jnlua.o: jnlua.c
 	mkdir -p $(dir $@)
-	$(CC) $(CFLAGS) -I$(JAVA_HOME)/include -I$(JAVA_HOME)/include/linux -I$(LUA_INC_DIR) -o build/jnlua.o jnlua.c
+	$(CC) $(CFLAGS) -I$(JAVA_HOME)/include -I$(JAVA_HOME)/include/$(JNI_PLATFORM) -I$(LUA_INC_DIR) -o build/jnlua.o jnlua.c
 
 javavm.$(LIB_SUFFIX): build/javavm.o
 	$(LD) $(LDFLAGS) -Wl,-soname=javavm.$(LIB_SUFFIX) -ojavavm.$(LIB_SUFFIX) -L$(LUA_LIB_DIR) -L$(JAVA_HOME)/jre/lib/$(ARCH)/server build/javavm.o -l$(LUA_LIB_NAME) -ljvm
 
 build/javavm.o: javavm.c javavm.h
 	mkdir -p $(dir $@)
-	$(CC) $(CFLAGS) -I$(JAVA_HOME)/include -I$(JAVA_HOME)/include/linux -I$(LUA_INC_DIR) -o build/javavm.o javavm.c
+	$(CC) $(CFLAGS) -I$(JAVA_HOME)/include -I$(JAVA_HOME)/include/$(JNI_PLATFORM) -I$(LUA_INC_DIR) -o build/javavm.o javavm.c
 
 clean:
 	-rm libjnlua$(JNLUA_SUFFIX).$(LIB_SUFFIX) build/jnlua.o

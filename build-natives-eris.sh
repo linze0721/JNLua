@@ -25,6 +25,8 @@ for plat_type in windows linux; do
 MY_GCC="gcc"
 MY_STRIP="strip"
 MY_LIB_SUFFIX="so"
+MY_PLATFORM_CFLAGS="-DLUA_USE_POSIX"
+MY_JNI_CFLAGS=""
 
 if [ "$arch_type" == "i686" ]; then
 	MINGW_GCC="i686-w64-mingw32-gcc"
@@ -45,6 +47,15 @@ if [ "$plat_type" = "windows" ]; then
 	MY_GCC="$MINGW_GCC"
 	MY_STRIP="$MINGW_STRIP"
 	MY_LIB_SUFFIX="dll"
+	MY_PLATFORM_CFLAGS=""
+	MY_JNI_CFLAGS="-Iwin32"
+	MY_JNLUA_LDFLAGS="$MY_LDFLAGS -Wl,--export-all-symbols"
+	if [ "$arch_type" == "i686" ]; then
+		MY_JNLUA_LDFLAGS="$MY_JNLUA_LDFLAGS -Wl,--kill-at"
+	fi
+fi
+if [ -z "$MY_JNLUA_LDFLAGS" ]; then
+	MY_JNLUA_LDFLAGS="$MY_LDFLAGS"
 fi
 
 MY_ERIS_CFLAGS="-DJNLUA_USE_ERIS"
@@ -71,6 +82,13 @@ else
 	LUA_SRC_DIR="../lua-$LUA55_VERSION"
 fi
 
+# Eris builds do not support the mingw make target (it builds a DLL instead
+# of a static library), so use the generic target with Windows support.
+if [ "$plat_type" = "windows" ] && [ "$lua_ver" != "5.5" ]; then
+	LUA_TYPE="generic"
+	MY_LUA_CFLAGS="$MY_LUA_CFLAGS -DLUA_USE_WINDOWS"
+fi
+
 cd "$LUA_SRC_DIR"
 
 if [ "$lua_ver" == "5.5" ]; then
@@ -85,7 +103,7 @@ fi
 cd ../native
 rm -f *.dll *.so build/*.o
 
-CFLAGS="$MY_CFLAGS $MY_ERIS_CFLAGS -DLUA_USE_POSIX" LDFLAGS="$MY_LDFLAGS" ARCH=amd64 JNLUA_SUFFIX="$MY_JNLUA_SUFFIX" \
+CFLAGS="$MY_CFLAGS $MY_ERIS_CFLAGS $MY_PLATFORM_CFLAGS $MY_JNI_CFLAGS" LDFLAGS="$MY_JNLUA_LDFLAGS" ARCH=amd64 JNLUA_SUFFIX="$MY_JNLUA_SUFFIX" \
   LUA_LIB_NAME=lua LUA_INC_DIR="$LUA_SRC_DIR/src" LUA_LIB_DIR="$LUA_SRC_DIR/src" LIB_SUFFIX="$MY_LIB_SUFFIX" \
   CC="$MY_GCC" LUA_VERSION="$lua_ver" \
   make -f Makefile.linux libjnlua

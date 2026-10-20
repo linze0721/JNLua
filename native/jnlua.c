@@ -15,11 +15,11 @@
 #include <lualib.h>
 
 /* Include uintptr_t */
-#ifdef LUA_WIN
+#if defined(LUA_WIN) || defined(_WIN32)
 #include <stddef.h>
-#define JNLUA_THREADLOCAL static __declspec(thread)
-#endif
-#ifdef LUA_USE_POSIX
+#include <stdint.h>
+#define JNLUA_THREADLOCAL static __thread
+#elif defined(LUA_USE_POSIX)
 #include <stdint.h>
 #define JNLUA_THREADLOCAL static __thread
 #endif
