@@ -23,12 +23,15 @@
 package org.terasology.jnlua.test;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
 
 import java.util.ArrayList;
 import java.util.List;
 
 import org.junit.Test;
 
+import org.terasology.jnlua.Converter;
+import org.terasology.jnlua.DefaultConverter;
 import org.terasology.jnlua.LuaState;
 
 /**
@@ -70,5 +73,45 @@ public class JavaReflectionTest extends AbstractLuaTest {
 		} finally {
 			other.close();
 		}
+	}
+
+	/**
+	 * Tests that a primitive return value stays a Lua number and that a custom
+	 * converter is still used for it.
+	 */
+	@Test
+	public void testPrimitiveReturn() throws Exception {
+		luaState.openLibs();
+		List<String> values = new ArrayList<String>();
+		luaState.pushJavaObject(values);
+		luaState.setGlobal("values");
+		luaState.load("assert(values:size() == 0); return type(values:size())", "=primitive");
+		luaState.call(0, 1);
+		assertEquals("number", luaState.toString(-1));
+		luaState.pop(1);
+
+		final int[] conversions = new int[1];
+		final Converter delegate = DefaultConverter.getInstance();
+		luaState.setConverter(new Converter() {
+			public int getTypeDistance(LuaState state, int index, Class<?> formalType) {
+				return delegate.getTypeDistance(state, index, formalType);
+			}
+
+			public <T> T convertLuaValue(LuaState state, int index, Class<T> formalType) {
+				return delegate.convertLuaValue(state, index, formalType);
+			}
+
+			public void convertJavaObject(LuaState state, Object object) {
+				if (object instanceof Integer) {
+					conversions[0]++;
+				}
+				delegate.convertJavaObject(state, object);
+			}
+		});
+		luaState.load("return values:size()", "=primitive");
+		luaState.call(0, 1);
+		assertEquals(0, luaState.toInteger(-1));
+		luaState.pop(1);
+		assertTrue(conversions[0] > 0);
 	}
 }

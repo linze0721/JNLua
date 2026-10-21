@@ -378,9 +378,26 @@ public class DefaultJavaReflector implements JavaReflector {
 
 	// -- Nested types
 	/**
+	 * Caches one resolved accessor for the __index fast path.
+	 */
+	private static final class AccessorCache {
+		final Class<?> objectClass;
+		final String key;
+		final Accessor accessor;
+
+		AccessorCache(Class<?> objectClass, String key, Accessor accessor) {
+			this.objectClass = objectClass;
+			this.key = key;
+			this.accessor = accessor;
+		}
+	}
+
+	/**
 	 * <code>__index</code> metamethod implementation.
 	 */
 	private class Index implements JavaFunction {
+		private volatile AccessorCache accessorCache;
+
 		public int invoke(LuaState luaState) {
 			// Get object and class
 			Object object = luaState.toJavaObjectRaw(1);
@@ -409,7 +426,6 @@ public class DefaultJavaReflector implements JavaReflector {
 			}
 
 			// Handle objects
-			Map<String, Accessor> objectAccessors = getObjectAccessors(object);
 			String key = luaState.toString(-1);
 			if (key == null) {
 				throw new LuaRuntimeException(String.format(
@@ -417,7 +433,17 @@ public class DefaultJavaReflector implements JavaReflector {
 								.getClass().getCanonicalName(), luaState
 								.typeName(-1)));
 			}
-			Accessor accessor = objectAccessors.get(key);
+			Accessor accessor;
+			AccessorCache cache = accessorCache;
+			if (cache != null && objectClass == cache.objectClass
+					&& key.equals(cache.key)) {
+				accessor = cache.accessor;
+			} else {
+				accessor = getObjectAccessors(object).get(key);
+				if (accessor != null) {
+					accessorCache = new AccessorCache(objectClass, key, accessor);
+				}
+			}
 			if (accessor == null) {
 				throw new LuaRuntimeException(
 						String.format(
@@ -984,10 +1010,11 @@ public class DefaultJavaReflector implements JavaReflector {
 				object = luaState.checkJavaObject(1, Object.class);
 			}
 			Class<?> objectClass = getObjectClass(object);
-			luaState.checkArg(1, clazz.isAssignableFrom(objectClass), String
-					.format("class %s is not a subclass of %s",
-							objectClass.getCanonicalName(),
-							clazz.getCanonicalName()));
+			if (!clazz.isAssignableFrom(objectClass)) {
+				luaState.checkArg(1, false, "class "
+						+ objectClass.getCanonicalName()
+						+ " is not a subclass of " + clazz.getCanonicalName());
+			}
 			if (objectClass == object) {
 				object = null;
 			}
