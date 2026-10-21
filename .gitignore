@@ -17,8 +17,12 @@ native/Linux/*.o
 native/Linux/*.so
 natives
 
+# Lua 5.5 sources downloaded by the build script
+lua-5.5.*/
+lua-5.5.*.tar.gz
+
 # Other stuff
 .DS_Store
-eris/
+/eris/
 native-build/
 native-debug/

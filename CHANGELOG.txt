@@ -3,7 +3,8 @@
 - Added Lua 5.4 and Lua 5.5 support, available alongside the existing Lua 5.2
 and Lua 5.3 support.
 
-- The Lua 5.5 natives are built without Eris, as Eris has no Lua 5.5 branch.
+- Added Eris support for Lua 5.5 through the compatibility patches in
+native/eris.
 
 - Added LuaState.getMainThreadRegistryIndex(), as Lua 5.5 moved the main thread
 in the registry from index 1 to index 3.

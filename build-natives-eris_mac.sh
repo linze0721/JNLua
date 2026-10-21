@@ -1,26 +1,40 @@
 #!/bin/bash
+ROOT="$(cd "$(dirname "$0")" && pwd)"
+cd "$ROOT"
+
 mkdir -p native-build
 mkdir -p native-debug
 rm -f native-build/*.dylib
 rm -f native-debug/*.dylib
 
-# Lua 5.5 has no Eris branch, so it is built from the official sources
-# without persistence support.
+# Eris has no Lua 5.5 branch, so the 5.5 natives are built from the official
+# sources with the compatibility patches in native/eris.
 LUA55_VERSION="5.5.1"
+LUA_VERSIONS="${LUA_VERSIONS:-5.2 5.3 5.4 5.5}"
+ARCHS="${ARCHS:-amd64}"
+PLATFORMS="${PLATFORMS:-mac}"
 
 if [ ! -d eris ]; then
 	git clone https://github.com/MovingBlocks/eris
 fi
-if [ ! -d lua-$LUA55_VERSION ]; then
-	curl -LO https://www.lua.org/ftp/lua-$LUA55_VERSION.tar.gz
+
+if [[ " $LUA_VERSIONS " == *" 5.5 "* ]]; then
+	git -C eris checkout master-lua5.4
+	if [ ! -f lua-$LUA55_VERSION.tar.gz ]; then
+		curl -LO https://www.lua.org/ftp/lua-$LUA55_VERSION.tar.gz
+	fi
+	rm -rf lua-$LUA55_VERSION
 	tar xzf lua-$LUA55_VERSION.tar.gz
+	cp eris/src/eris.c eris/src/eris.h lua-$LUA55_VERSION/src/
+	git apply --directory=lua-$LUA55_VERSION "$ROOT/native/eris/eris-libs-lua5.5.patch" || exit 1
+	git apply --directory=lua-$LUA55_VERSION "$ROOT/native/eris/eris-lua5.5.patch" || exit 1
 fi
 
 cd native
 
-for lua_ver in 5.2 5.3 5.4 5.5; do
-for arch_type in amd64; do
-for plat_type in mac; do
+for lua_ver in $LUA_VERSIONS; do
+for arch_type in $ARCHS; do
+for plat_type in $PLATFORMS; do
 
 MY_GCC="gcc"
 MY_STRIP="strip"
@@ -54,7 +68,7 @@ elif [ "$lua_ver" == "5.4" ]; then
 	LUA_SRC_DIR="../eris"
 else
 	MY_JNLUA_SUFFIX="55"
-	MY_ERIS_CFLAGS=""
+	MY_ERIS_CFLAGS="-DJNLUA_USE_ERIS"
 	LUA_TYPE="macosx"
 	LUA_SRC_DIR="../lua-$LUA55_VERSION"
 fi

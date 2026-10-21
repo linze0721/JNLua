@@ -35,7 +35,7 @@ way. The JSR 223 provider also supports the optional Compilable and Invocable in
 
 Additionally, the Terasology version provides the following:
 
-- **Support for [Eris](https://github.com/fnuecke/eris)**, a modified version of the Lua virtual machine with support for state serialization. Eris is available for Lua 5.2 to 5.4; the Lua 5.5 natives are built without it.
+- **Support for [Eris](https://github.com/fnuecke/eris)**, a modified version of the Lua virtual machine with support for state serialization, available for Lua 5.2 to 5.5. The Lua 5.5 natives use the compatibility patches in `native/eris`, as Eris has no Lua 5.5 branch of its own.
 - **Memory usage limiting** for additional sandboxing
 - **Simultaneous Lua 5.2, 5.3, 5.4 and 5.5 support**
 
@@ -55,7 +55,7 @@ To build the natives on Linux you need:
 
 Then simply run `./build-natives-eris.sh` and with a little luck you now have shiny new natives compiled for Linux (and Windows).
 
-Note that during the script execution [Eris](https://github.com/fnuecke/eris) will be cloned into a subdir `eris`, and the official Lua 5.5 sources will be downloaded into a subdir `lua-5.5.1`. Lua 5.5 is built without Eris: Eris has no Lua 5.5 branch, and porting it requires adapting its persistence code to the relocation-aware stack representation introduced in Lua 5.5.
+Note that during the script execution [Eris](https://github.com/fnuecke/eris) will be cloned into a subdir `eris`, and the official Lua 5.5 sources will be downloaded into a subdir `lua-5.5.1`. Lua 5.5 is built from the official sources with the Eris compatibility patches in `native/eris`; Eris has no Lua 5.5 branch of its own.
 
 Windows natives can be cross-compiled with MinGW-w64, for both `amd64` and `i686`. Linux JDK distributions do not ship the win32 JNI headers, so the script uses `native/win32/jni_md.h` when targeting Windows. Building the 32-bit Linux natives requires a 32-bit toolchain and libraries (`gcc-multilib` and a 32-bit libc).
 

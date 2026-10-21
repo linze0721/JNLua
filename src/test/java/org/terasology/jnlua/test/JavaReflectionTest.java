@@ -30,7 +30,6 @@ import java.util.List;
 import org.junit.Test;
 
 import org.terasology.jnlua.LuaState;
-import org.terasology.jnlua.LuaState53;
 
 /**
  * Contains unit tests for Java reflection.
@@ -59,7 +58,7 @@ public class JavaReflectionTest extends AbstractLuaTest {
 		assertEquals(100, luaState.toInteger(-1));
 		luaState.pop(1);
 
-		LuaState other = new LuaState53();
+		LuaState other = createLuaState();
 		try {
 			other.openLibs();
 			List<String> otherValues = new ArrayList<String>();
